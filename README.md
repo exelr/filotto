@@ -39,3 +39,11 @@ Players can move iff they are in a match, the turn is their and the move is in a
 Queue is actually implemented as a `list.List` but due to the simple nature of the match it can be also implemented as a single variable that is the only waiting player.
 
 The full implementation is in [filotto.go](/filotto.go)
+
+## Improvements
+
+If you want to experiment with the events, some improvements can be done.
+Actually the name of the player is missing from the UI, you can integrate it.
+You can also implement the ability for players to change their names (you would need a new event!).
+
+Also, the UI is very basic and without any js framework (I had to use jQuery for primitive animations).
