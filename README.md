@@ -1,5 +1,7 @@
 # Filotto
 
+![Filotto](screenshot.png)
+
 A simple web game that mimics [Connect Four](https://en.wikipedia.org/wiki/Connect_Four)
 that uses [Edd Wise](https://github.com/exelr/eddwise) code generation tools.
 
