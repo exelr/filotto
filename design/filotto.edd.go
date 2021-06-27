@@ -1,5 +1,6 @@
 package filotto
 
+// Filotto is the edd channel on which the server and the players communicate
 type Filotto interface {
 	Enable(
 		Welcome,
@@ -8,9 +9,8 @@ type Filotto interface {
 		PlayerMove,
 		QueueRequest,
 	)
-
-	ServerToClient(Welcome, MatchStarts, MatchEnds)
-	ClientToServer(QueueRequest)
+	ServerToClient(Welcome, MatchStarts, MatchEnds) // Prevent clients to send unwanted events (prevent docs to be generated in client library)
+	ClientToServer(QueueRequest)                    // Prevent server to send players a QueueRequest
 }
 
 // Welcome is sent from server to client whenever connects
