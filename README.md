@@ -7,10 +7,18 @@ that uses [Edd Wise](https://github.com/exelr/eddwise) code generation tools.
 
 ## Run the game
 
-Start the server:
+If you have `go` >= 1.16, start the server directly:
 ```shell
 go run github.com/exelr/filotto/cmd/service -w 8080 -s 3000
 ```
+
+Otherwise you can use Docker:
+
+```shell
+docker build . -t filotto
+docker run -p8080:8080 -p3000:3000 filotto
+```
+
 
 Open in a browser [http://localhost:8080](http://localhost:8080) in a browser, and play against yourself!
 
