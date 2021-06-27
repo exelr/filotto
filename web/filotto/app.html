@@ -1,0 +1,194 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Filotto Game!</title>
+    <script
+            src="https://code.jquery.com/jquery-3.6.0.min.js"
+            integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4="
+            crossorigin="anonymous"></script>
+    <style type="text/css">
+        .tile {
+            width:50px;
+            height: 50px;
+            background-color: white;
+            cursor: pointer;
+        }
+        .tile-adv {
+            background-color: darkred;
+        }
+        .tile-your {
+            background-color: khaki;
+        }
+        .tile-fall {
+            background-color: black !important;
+        }
+
+        #board {
+            margin:auto;
+            border: none;
+            height:350px;
+            background-color:cornflowerblue;
+        }
+        #board td {
+            border-radius: 50%;
+            border:1px solid dimgray;
+        }
+    </style>
+</head>
+<body>
+<h1>Filotto</h1>
+<table>
+    <tr>
+        <td style="width:500px;background-color:cornflowerblue;">
+            <table id="board" border="1" cellspacing="6">
+            </table>
+        </td>
+        <td id="turn-status" style="width:500px; font-size: 20px; font-weight: bold"></td>
+    </tr>
+
+</table>
+<div id="controls">
+    <button id="btn-qr" style="display:none" onclick="chFilotto.sendQueueRequest({}); $(this).hide()">Find Another match</button>
+</div>
+<!--<div id="output"></div>-->
+<script src="http://localhost:3000/filotto/edd.js"></script>
+<script src="/channel.js"></script>
+<script>
+  var wsUri = "ws://localhost:3000/filotto"
+  var client = new EddClient(wsUri)
+
+  var board = [];
+
+  function drawBoard(){
+      var columns = board.length
+      var rows = board[0].length
+      var table = ""
+      for(let r = rows-1; r >= 0; r-- ){
+          var tr = "<tr>"
+          for(let c = 0; c < columns; c++){
+              let clss = "tile"
+              if(board[c][r] != 0) {
+                  if (board[c][r] == player.Id) {
+                      clss += " tile-your"
+                  } else {
+                      clss += " tile-adv"
+                  }
+              }
+              tr += "<td onclick='move(this)' data-column='"+c+"' data-row='" + r +"' id='c_"+c+"_r_"+r+"' class='" + clss +"'></td>";
+          }
+          tr += "</tr>"
+          table += tr
+      }
+      document.getElementById("board").innerHTML = table
+  }
+
+  function move(el){
+      var col = el.dataset.column
+      chFilotto.sendPlayerMove({
+          Column: col*1,
+      })
+  }
+
+  var player = null;
+
+  var chFilotto = new FilottoChannel()
+  let checkAnimWin = null
+
+  chFilotto.onMatchEnds(function (event){
+      // document.getElementById("output").innerHTML += "Event 'MatchEnds' received: " + JSON.stringify(event) + "<br>"
+      if(event.Winner.Id === player.Id) {
+          // document.getElementById("output").innerHTML += "<b style='color:darkgreen'>YOU WIN!!</b><br>"
+          document.getElementById("turn-status").innerText = "YOU WIN!!\n" + event.Reason
+      } else {
+          // document.getElementById("output").innerHTML += "<b style='color:darkred'>You lose...</b><br>"
+          document.getElementById("turn-status").innerText = "You lose..."
+      }
+      $("#btn-qr").show()
+      checkAnimWin = function() {
+          if (event.WinLine != null && event.WinLine.length > 0) {
+              for (let i in event.WinLine) {
+                  var point = event.WinLine[i]
+                  $("#c_" + point.Column + "_r_" + point.Row)
+                      .fadeOut().fadeIn()
+                      .fadeOut().fadeIn()
+                      .fadeOut().fadeIn()
+                      .fadeOut().fadeIn()
+                      .fadeOut().fadeIn()
+                      .fadeOut().fadeIn()
+                      .fadeOut().fadeIn()
+              }
+          }
+      }
+  })
+
+  chFilotto.onMatchStarts(function (event){
+      // document.getElementById("output").innerHTML += "Event 'MatchStarts' received: " + JSON.stringify(event) + "<br>"
+      board = Array.apply(null, Array(event.Columns)).map(function (x, i) { return Array(event.Rows).fill(0, 0, event.Rows); })
+      drawBoard()
+      $("#btn-qr").hide()
+      if(event.FirstMove){
+          document.getElementById("turn-status").innerText = "Your turn"
+      } else {
+          document.getElementById("turn-status").innerText = "Remote player turn"
+      }
+  })
+  let falls = 0
+  chFilotto.onPlayerMove(function (event){
+      falls++
+      let currentFalls = falls
+      // document.getElementById("output").innerHTML += "Event 'PlayerMove' received: " + JSON.stringify(event) + "<br>"
+      var clss = "tile-your"
+      if(player.Id !== event.Player.Id) {
+          clss = "tile-adv"
+      }
+      for(let r = board[0].length-1; r >= event.Row; r-- ){
+          let el = $("#c_" + event.Column + "_r_" + r);
+          var w = (board[0].length - r) * 300
+          el.promise().done(function(){
+              el.delay(w).promise().done(function(){
+                  if (r != event.Row) {
+                      el.addClass(clss).hide().fadeIn(150).fadeTo(150, 0.7).fadeTo(0, 1).promise().done(function () {
+                          this.removeClass(clss)
+                          // drawBoard()
+                      })
+                  } else {
+                      el.addClass(clss).hide().fadeIn(150).promise().done(function(){
+                          if (checkAnimWin != null && currentFalls === falls){
+                              checkAnimWin()
+                              checkAnimWin = null
+                          }
+                      })
+                  }
+              })
+          })
+
+
+      }
+      board[event.Column][event.Row] = event.Player.Id
+      // drawBoard()
+      if(player.Id !== event.Player.Id) {
+          document.getElementById("turn-status").innerText = "Your turn"
+      } else {
+          document.getElementById("turn-status").innerText = "Remote player turn"
+      }
+
+  })
+
+  chFilotto.onWelcome(function (event){
+      // document.getElementById("output").innerHTML += "Event 'Welcome' received: " + JSON.stringify(event) + "<br>"
+      player = event.You
+      chFilotto.sendQueueRequest({})
+      document.getElementById("turn-status").innerText = "Waiting for a match"
+  })
+
+  client.register(chFilotto)
+
+
+  client.start()
+
+</script>
+</body>
+</html>
+
