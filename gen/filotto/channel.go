@@ -9,29 +9,15 @@ import (
 )
 
 var _ eddwise.ImplChannel = (*Filotto)(nil)
-
-type FilottoContext interface {
-	eddwise.Context
-	GetChannel() *Filotto
-}
-
-type FilottoDefaultContext struct {
-	eddwise.Context
-	channel *Filotto
-}
-
-func (ctx *FilottoDefaultContext) GetChannel() *Filotto {
-	return ctx.channel
-}
+var _ FilottoRecv = (*Filotto)(nil)
 
 type FilottoRecv interface {
-	OnPlayerMove(FilottoContext, *PlayerMove) error
-
-	OnQueueRequest(FilottoContext, *QueueRequest) error
+	OnPlayerMove(eddwise.Context, *PlayerMove) error
+	OnQueueRequest(eddwise.Context, *QueueRequest) error
 }
 
 type Filotto struct {
-	server *eddwise.Server
+	server eddwise.Server
 	recv   FilottoRecv
 }
 
@@ -39,89 +25,109 @@ func (ch *Filotto) Name() string {
 	return "Filotto"
 }
 
-func (ch *Filotto) Bind(server *eddwise.Server) error {
+func (ch *Filotto) Bind(server eddwise.Server) error {
 	ch.server = server
 	return nil
 }
 
-func (ch *Filotto) SetReceiver(chr interface{}) {
+func (ch *Filotto) SetReceiver(chr eddwise.ImplChannel) error {
+	if _, ok := chr.(FilottoRecv); !ok {
+		return errors.New("unexpected channel type while SetReceiver on 'Filotto' channel")
+	}
 	ch.recv = chr.(FilottoRecv)
+	return nil
 }
 
-func (ch *Filotto) GetServer() *eddwise.Server {
+func (ch *Filotto) GetServer() eddwise.Server {
 	return ch.server
 }
 
-func (ch *Filotto) Route(ctx eddwise.Context, evt *eddwise.Event) error {
-	var ctx2 = &FilottoDefaultContext{
-		Context: ctx,
-		channel: ch,
-	}
+func (ch *Filotto) Route(ctx eddwise.Context, evt *eddwise.EventMessage) error {
 	switch evt.Name {
 	default:
 		return eddwise.ErrMissingServerHandler(evt.Channel, evt.Name)
 
 	case "PlayerMove":
 		var msg = &PlayerMove{}
-		if err := ch.server.Serializer.Deserialize(evt.Body, msg); err != nil {
+		if err := ch.server.GetSerializer().Deserialize(evt.Body, msg); err != nil {
 			return err
 		}
-		return ch.recv.OnPlayerMove(ctx2, msg)
+		return ch.recv.OnPlayerMove(ctx, msg)
 
 	case "QueueRequest":
 		var msg = &QueueRequest{}
-		if err := ch.server.Serializer.Deserialize(evt.Body, msg); err != nil {
+		if err := ch.server.GetSerializer().Deserialize(evt.Body, msg); err != nil {
 			return err
 		}
-		return ch.recv.OnQueueRequest(ctx2, msg)
+		return ch.recv.OnQueueRequest(ctx, msg)
 
 	}
 }
 
-func (ch *Filotto) OnPlayerMove(FilottoContext, *PlayerMove) error {
+func (ch *Filotto) OnPlayerMove(eddwise.Context, *PlayerMove) error {
 	return errors.New("event 'PlayerMove' is not handled on server")
 }
 
-func (ch *Filotto) OnQueueRequest(FilottoContext, *QueueRequest) error {
+func (ch *Filotto) OnQueueRequest(eddwise.Context, *QueueRequest) error {
 	return errors.New("event 'QueueRequest' is not handled on server")
 }
 
-func (ch *Filotto) SendMatchEnds(client *eddwise.Client, msg *MatchEnds) error {
-	return client.Send(ch.Name(), "MatchEnds", msg)
+func (ch *Filotto) SendMatchEnds(client eddwise.Client, msg *MatchEnds) error {
+	return client.Send(ch.Name(), msg)
 }
 
-func (ch *Filotto) SendMatchStarts(client *eddwise.Client, msg *MatchStarts) error {
-	return client.Send(ch.Name(), "MatchStarts", msg)
+func (ch *Filotto) SendMatchStarts(client eddwise.Client, msg *MatchStarts) error {
+	return client.Send(ch.Name(), msg)
 }
 
-func (ch *Filotto) SendPlayerMove(client *eddwise.Client, msg *PlayerMove) error {
-	return client.Send(ch.Name(), "PlayerMove", msg)
+func (ch *Filotto) SendPlayerMove(client eddwise.Client, msg *PlayerMove) error {
+	return client.Send(ch.Name(), msg)
 }
 
-func (ch *Filotto) SendWelcome(client *eddwise.Client, msg *Welcome) error {
-	return client.Send(ch.Name(), "Welcome", msg)
+func (ch *Filotto) SendWelcome(client eddwise.Client, msg *Welcome) error {
+	return client.Send(ch.Name(), msg)
 }
 
-func (ch *Filotto) BroadcastMatchEnds(clients []*eddwise.Client, msg *MatchEnds) error {
-	return ch.server.Broadcast(ch.Name(), "MatchEnds", msg, clients)
+func (ch *Filotto) BroadcastMatchEnds(clients []eddwise.Client, msg *MatchEnds) error {
+	return eddwise.Broadcast(ch.Name(), msg, clients)
 }
 
-func (ch *Filotto) BroadcastMatchStarts(clients []*eddwise.Client, msg *MatchStarts) error {
-	return ch.server.Broadcast(ch.Name(), "MatchStarts", msg, clients)
+func (ch *Filotto) BroadcastMatchStarts(clients []eddwise.Client, msg *MatchStarts) error {
+	return eddwise.Broadcast(ch.Name(), msg, clients)
 }
 
-func (ch *Filotto) BroadcastPlayerMove(clients []*eddwise.Client, msg *PlayerMove) error {
-	return ch.server.Broadcast(ch.Name(), "PlayerMove", msg, clients)
+func (ch *Filotto) BroadcastPlayerMove(clients []eddwise.Client, msg *PlayerMove) error {
+	return eddwise.Broadcast(ch.Name(), msg, clients)
 }
 
-func (ch *Filotto) BroadcastWelcome(clients []*eddwise.Client, msg *Welcome) error {
-	return ch.server.Broadcast(ch.Name(), "Welcome", msg, clients)
+func (ch *Filotto) BroadcastWelcome(clients []eddwise.Client, msg *Welcome) error {
+	return eddwise.Broadcast(ch.Name(), msg, clients)
 }
 
 // Event structures
 
-type Welcome struct {
-	You Player `json:"You"`
+// MatchEnds sent from server to both players in a match when the match ends for whatever reason
+type MatchEnds struct {
+	Winner  Player  `json:"Winner"`
+	WinLine []Point `json:"WinLine"`
+	// Reason can be "line" or "player_left"
+	Reason string `json:"Reason"`
+}
+
+func (evt *MatchEnds) GetEventName() string {
+	return "MatchEnds"
+}
+
+// MatchStarts sent from server to two clients when the match is found for two players
+type MatchStarts struct {
+	Rows      uint64 `json:"Rows"`
+	Adversary Player `json:"Adversary"`
+	FirstMove bool   `json:"FirstMove"`
+	Columns   uint64 `json:"Columns"`
+}
+
+func (evt *MatchStarts) GetEventName() string {
+	return "MatchStarts"
 }
 
 type Player struct {
@@ -129,20 +135,19 @@ type Player struct {
 	Name string `json:"Name"`
 }
 
-type QueueRequest struct {
+func (evt *Player) GetEventName() string {
+	return "Player"
 }
 
-type MatchStarts struct {
-	Adversary *Player `json:"Adversary,omitempty"`
-	FirstMove bool    `json:"FirstMove"`
-	Columns   uint64  `json:"Columns"`
-	Rows      uint64  `json:"Rows"`
+// PlayerMove sent when client performs any move. Server will relay to adversary
+type PlayerMove struct {
+	Player *Player `json:"Player,omitempty"` // ServerToClient
+	Column uint    `json:"Column"`
+	Row    *uint   `json:"Row,omitempty"` // ServerToClient
 }
 
-type MatchEnds struct {
-	Winner  *Player `json:"Winner,omitempty"`
-	WinLine []Point `json:"WinLine"`
-	Reason  string  `json:"Reason"`
+func (evt *PlayerMove) GetEventName() string {
+	return "PlayerMove"
 }
 
 type Point struct {
@@ -150,8 +155,22 @@ type Point struct {
 	Column uint `json:"Column"`
 }
 
-type PlayerMove struct {
-	Player *Player `json:"Player,omitempty"`
-	Column uint    `json:"Column"`
-	Row    *uint   `json:"Row,omitempty"`
+func (evt *Point) GetEventName() string {
+	return "Point"
+}
+
+type QueueRequest struct {
+}
+
+func (evt *QueueRequest) GetEventName() string {
+	return "QueueRequest"
+}
+
+// Welcome is sent from server to client whenever connects
+type Welcome struct {
+	You Player `json:"You"`
+}
+
+func (evt *Welcome) GetEventName() string {
+	return "Welcome"
 }

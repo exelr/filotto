@@ -19,8 +19,7 @@ const (
 type MatchStatus uint
 
 const (
-	MatchStatusPlaying MatchStatus = iota
-	MatchStatusWaitPlayer1
+	MatchStatusWaitPlayer1 MatchStatus = iota
 	MatchStatusWaitPlayer2
 	MatchStatusWinPlayer1
 	MatchStatusWinPlayer2
@@ -57,15 +56,15 @@ func (m *Match) GetAdversary(pm *PlayerMatch) *PlayerMatch {
 type PlayerMatch struct {
 	Player *filotto.Player
 	Match  *Match
-	Client *eddwise.Client
+	Client eddwise.Client
 	Queue  *list.Element
 }
 
 type FilottoChannel struct {
 	filotto.Filotto
-	Players          map[uint64]*PlayerMatch
-	PlayersMx        sync.RWMutex
-	Matches          []*Match
+	Players   map[uint64]*PlayerMatch
+	PlayersMx sync.RWMutex
+	//Matches          []*Match
 	WaitingPlayers   *list.List
 	WaitingPlayersMx sync.Mutex
 }
@@ -79,14 +78,14 @@ func (ch *FilottoChannel) AddPlayerToWaitingFront(p *PlayerMatch, unsafe ...bool
 		ch.WaitingPlayersMx.Lock()
 		defer ch.WaitingPlayersMx.Unlock()
 	}
-	p.Queue = ch.WaitingPlayers.PushBack(p)
+	p.Queue = ch.WaitingPlayers.PushFront(p)
 }
 func (ch *FilottoChannel) AddPlayerToWaitingBack(p *PlayerMatch, unsafe ...bool) {
 	if len(unsafe) == 0 || !unsafe[0] {
 		ch.WaitingPlayersMx.Lock()
 		defer ch.WaitingPlayersMx.Unlock()
 	}
-	p.Queue = ch.WaitingPlayers.PushFront(p)
+	p.Queue = ch.WaitingPlayers.PushBack(p)
 }
 
 func (ch *FilottoChannel) RemovePlayerFromQueue(p *PlayerMatch) {
@@ -104,7 +103,7 @@ func (ch *FilottoChannel) PickFirstAvailablePlayer() *PlayerMatch {
 		var p = ch.WaitingPlayers.Front().Value.(*PlayerMatch)
 		ch.WaitingPlayers.Remove(ch.WaitingPlayers.Front())
 		p.Queue = nil
-		if !p.Client.Closed {
+		if !p.Client.Closed() {
 			return p
 		}
 	}
@@ -143,11 +142,11 @@ func (ch *FilottoChannel) CheckStartMatch() error {
 	p1.Match = match
 	p2.Match = match
 
-	if err := ch.SendMatchStarts(p1.Client, &filotto.MatchStarts{Adversary: p2.Player, Columns: Columns, Rows: Rows, FirstMove: true}); err != nil {
+	if err := ch.SendMatchStarts(p1.Client, &filotto.MatchStarts{Adversary: *p2.Player, Columns: Columns, Rows: Rows, FirstMove: true}); err != nil {
 		//return err
 	}
 
-	if err := ch.SendMatchStarts(p2.Client, &filotto.MatchStarts{Adversary: p1.Player, Columns: Columns, Rows: Rows}); err != nil {
+	if err := ch.SendMatchStarts(p2.Client, &filotto.MatchStarts{Adversary: *p1.Player, Columns: Columns, Rows: Rows}); err != nil {
 		//return err
 	}
 
@@ -155,7 +154,7 @@ func (ch *FilottoChannel) CheckStartMatch() error {
 
 }
 
-func (ch *FilottoChannel) Connected(c *eddwise.Client) error {
+func (ch *FilottoChannel) Connected(c eddwise.Client) error {
 
 	log.Println("User connected", c.GetId())
 
@@ -177,7 +176,7 @@ func (ch *FilottoChannel) Connected(c *eddwise.Client) error {
 	return ch.SendWelcome(c, &filotto.Welcome{You: *player.Player})
 }
 
-func (ch *FilottoChannel) Disconnected(c *eddwise.Client) error {
+func (ch *FilottoChannel) Disconnected(c eddwise.Client) error {
 	var id = c.GetId()
 	ch.PlayersMx.Lock()
 	var pm = ch.Players[id]
@@ -193,7 +192,7 @@ func (ch *FilottoChannel) Disconnected(c *eddwise.Client) error {
 		pm.Match.Status = status
 		pm.Match.WinReason = WinReasonRemotePlayerLeft
 		_ = ch.SendMatchEnds(adversary.Client, &filotto.MatchEnds{
-			Winner:  adversary.Player,
+			Winner:  *adversary.Player,
 			WinLine: nil,
 			Reason:  string(WinReasonRemotePlayerLeft),
 		})
@@ -326,7 +325,7 @@ func CheckWin(board *[Columns][Rows]uint64, column, row uint) []filotto.Point {
 
 }
 
-func (ch *FilottoChannel) OnPlayerMove(ctx filotto.FilottoContext, playermove *filotto.PlayerMove) error {
+func (ch *FilottoChannel) OnPlayerMove(ctx eddwise.Context, playermove *filotto.PlayerMove) error {
 
 	//log.Println("received event PlayerMove:", playermove, "from", ctx.GetClient().GetId())
 
@@ -382,13 +381,13 @@ func (ch *FilottoChannel) OnPlayerMove(ctx filotto.FilottoContext, playermove *f
 	}
 
 	_ = ch.SendMatchEnds(adv.Client, &filotto.MatchEnds{
-		Winner:  pm.Player,
+		Winner:  *pm.Player,
 		WinLine: winLine,
 		Reason:  string(WinReasonLine),
 	})
 
 	_ = ch.SendMatchEnds(pm.Client, &filotto.MatchEnds{
-		Winner:  pm.Player,
+		Winner:  *pm.Player,
 		WinLine: winLine,
 		Reason:  string(WinReasonLine),
 	})
@@ -402,7 +401,7 @@ func (ch *FilottoChannel) OnPlayerMove(ctx filotto.FilottoContext, playermove *f
 	return nil
 }
 
-func (ch *FilottoChannel) OnQueueRequest(ctx filotto.FilottoContext, _ *filotto.QueueRequest) error {
+func (ch *FilottoChannel) OnQueueRequest(ctx eddwise.Context, _ *filotto.QueueRequest) error {
 	ch.PlayersMx.RLock()
 	var pm = ch.Players[ctx.GetClient().GetId()]
 	ch.PlayersMx.RUnlock()
