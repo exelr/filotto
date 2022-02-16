@@ -49,14 +49,20 @@ func (ch *Filotto) Route(ctx eddwise.Context, evt *eddwise.EventMessage) error {
 
 	case "PlayerMove":
 		var msg = &PlayerMove{}
-		if err := ch.server.GetSerializer().Deserialize(evt.Body, msg); err != nil {
+		if err := ch.server.Codec().Decode(evt.Body, msg); err != nil {
+			return err
+		}
+		if err := msg.CheckReceivedFields(); err != nil {
 			return err
 		}
 		return ch.recv.OnPlayerMove(ctx, msg)
 
 	case "QueueRequest":
 		var msg = &QueueRequest{}
-		if err := ch.server.GetSerializer().Deserialize(evt.Body, msg); err != nil {
+		if err := ch.server.Codec().Decode(evt.Body, msg); err != nil {
+			return err
+		}
+		if err := msg.CheckReceivedFields(); err != nil {
 			return err
 		}
 		return ch.recv.OnQueueRequest(ctx, msg)
@@ -118,25 +124,49 @@ func (evt *MatchEnds) GetEventName() string {
 	return "MatchEnds"
 }
 
+func (evt *MatchEnds) CheckSendFields() error {
+	return nil
+}
+
+func (evt *MatchEnds) CheckReceivedFields() error {
+	return nil
+}
+
 // MatchStarts sent from server to two clients when the match is found for two players
 type MatchStarts struct {
+	Columns   uint64 `json:"Columns"`
 	Rows      uint64 `json:"Rows"`
 	Adversary Player `json:"Adversary"`
 	FirstMove bool   `json:"FirstMove"`
-	Columns   uint64 `json:"Columns"`
 }
 
 func (evt *MatchStarts) GetEventName() string {
 	return "MatchStarts"
 }
 
+func (evt *MatchStarts) CheckSendFields() error {
+	return nil
+}
+
+func (evt *MatchStarts) CheckReceivedFields() error {
+	return nil
+}
+
 type Player struct {
-	Id   uint64 `json:"Id"`
 	Name string `json:"Name"`
+	Id   uint64 `json:"Id"`
 }
 
 func (evt *Player) GetEventName() string {
 	return "Player"
+}
+
+func (evt *Player) CheckSendFields() error {
+	return nil
+}
+
+func (evt *Player) CheckReceivedFields() error {
+	return nil
 }
 
 // PlayerMove sent when client performs any move. Server will relay to adversary
@@ -150,6 +180,20 @@ func (evt *PlayerMove) GetEventName() string {
 	return "PlayerMove"
 }
 
+func (evt *PlayerMove) CheckSendFields() error {
+	return nil
+}
+
+func (evt *PlayerMove) CheckReceivedFields() error {
+	if evt.Player != nil {
+		return errors.New("Player is an invalid field")
+	}
+	if evt.Row != nil {
+		return errors.New("Row is an invalid field")
+	}
+	return nil
+}
+
 type Point struct {
 	Row    uint `json:"Row"`
 	Column uint `json:"Column"`
@@ -159,11 +203,27 @@ func (evt *Point) GetEventName() string {
 	return "Point"
 }
 
+func (evt *Point) CheckSendFields() error {
+	return nil
+}
+
+func (evt *Point) CheckReceivedFields() error {
+	return nil
+}
+
 type QueueRequest struct {
 }
 
 func (evt *QueueRequest) GetEventName() string {
 	return "QueueRequest"
+}
+
+func (evt *QueueRequest) CheckSendFields() error {
+	return nil
+}
+
+func (evt *QueueRequest) CheckReceivedFields() error {
+	return nil
 }
 
 // Welcome is sent from server to client whenever connects
@@ -173,4 +233,12 @@ type Welcome struct {
 
 func (evt *Welcome) GetEventName() string {
 	return "Welcome"
+}
+
+func (evt *Welcome) CheckSendFields() error {
+	return nil
+}
+
+func (evt *Welcome) CheckReceivedFields() error {
+	return nil
 }

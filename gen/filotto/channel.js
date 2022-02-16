@@ -10,17 +10,17 @@
 
 /**
  * @typedef MatchStarts
+ * @property {uint} Columns 
  * @property {uint} Rows 
  * @property {Player} Adversary 
  * @property {boolean} FirstMove 
- * @property {uint} Columns 
  * @description MatchStarts sent from server to two clients when the match is found for two players
 */
 
 /**
  * @typedef Player
- * @property {uint} Id 
  * @property {string} Name 
+ * @property {uint} Id 
 */
 
 /**
