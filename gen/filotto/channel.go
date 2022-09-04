@@ -22,7 +22,11 @@ type Filotto struct {
 }
 
 func (ch *Filotto) Name() string {
-	return "Filotto"
+	return "filotto"
+}
+
+func (ch *Filotto) Alias() string {
+	return "filotto"
 }
 
 func (ch *Filotto) Bind(server eddwise.Server) error {
@@ -47,7 +51,8 @@ func (ch *Filotto) Route(ctx eddwise.Context, evt *eddwise.EventMessage) error {
 	default:
 		return eddwise.ErrMissingServerHandler(evt.Channel, evt.Name)
 
-	case "PlayerMove":
+	// player_move
+	case "player_move":
 		var msg = &PlayerMove{}
 		if err := ch.server.Codec().Decode(evt.Body, msg); err != nil {
 			return err
@@ -56,8 +61,8 @@ func (ch *Filotto) Route(ctx eddwise.Context, evt *eddwise.EventMessage) error {
 			return err
 		}
 		return ch.recv.OnPlayerMove(ctx, msg)
-
-	case "QueueRequest":
+	// queue_request
+	case "queue_request":
 		var msg = &QueueRequest{}
 		if err := ch.server.Codec().Decode(evt.Body, msg); err != nil {
 			return err
@@ -66,7 +71,6 @@ func (ch *Filotto) Route(ctx eddwise.Context, evt *eddwise.EventMessage) error {
 			return err
 		}
 		return ch.recv.OnQueueRequest(ctx, msg)
-
 	}
 }
 
@@ -79,49 +83,52 @@ func (ch *Filotto) OnQueueRequest(eddwise.Context, *QueueRequest) error {
 }
 
 func (ch *Filotto) SendMatchEnds(client eddwise.Client, msg *MatchEnds) error {
-	return client.Send(ch.Name(), msg)
+	return client.Send(ch.Alias(), msg)
 }
 
 func (ch *Filotto) SendMatchStarts(client eddwise.Client, msg *MatchStarts) error {
-	return client.Send(ch.Name(), msg)
+	return client.Send(ch.Alias(), msg)
 }
 
 func (ch *Filotto) SendPlayerMove(client eddwise.Client, msg *PlayerMove) error {
-	return client.Send(ch.Name(), msg)
+	return client.Send(ch.Alias(), msg)
 }
 
 func (ch *Filotto) SendWelcome(client eddwise.Client, msg *Welcome) error {
-	return client.Send(ch.Name(), msg)
+	return client.Send(ch.Alias(), msg)
 }
 
 func (ch *Filotto) BroadcastMatchEnds(clients []eddwise.Client, msg *MatchEnds) error {
-	return eddwise.Broadcast(ch.Name(), msg, clients)
+	return eddwise.Broadcast(ch.Alias(), msg, clients)
 }
 
 func (ch *Filotto) BroadcastMatchStarts(clients []eddwise.Client, msg *MatchStarts) error {
-	return eddwise.Broadcast(ch.Name(), msg, clients)
+	return eddwise.Broadcast(ch.Alias(), msg, clients)
 }
 
 func (ch *Filotto) BroadcastPlayerMove(clients []eddwise.Client, msg *PlayerMove) error {
-	return eddwise.Broadcast(ch.Name(), msg, clients)
+	return eddwise.Broadcast(ch.Alias(), msg, clients)
 }
 
 func (ch *Filotto) BroadcastWelcome(clients []eddwise.Client, msg *Welcome) error {
-	return eddwise.Broadcast(ch.Name(), msg, clients)
+	return eddwise.Broadcast(ch.Alias(), msg, clients)
 }
 
 // Event structures
 
-// MatchEnds sent from server to both players in a match when the match ends for whatever reason
 type MatchEnds struct {
-	Winner  Player  `json:"Winner"`
-	WinLine []Point `json:"WinLine"`
+	Winner  Player  `json:"winner"`
+	WinLine []Point `json:"win_line"`
 	// Reason can be "line" or "player_left"
-	Reason string `json:"Reason"`
+	Reason string `json:"reason"`
 }
 
 func (evt *MatchEnds) GetEventName() string {
-	return "MatchEnds"
+	return "match_ends"
+}
+
+func (evt *MatchEnds) ProtocolAlias() string {
+	return "match_ends"
 }
 
 func (evt *MatchEnds) CheckSendFields() error {
@@ -132,16 +139,19 @@ func (evt *MatchEnds) CheckReceivedFields() error {
 	return nil
 }
 
-// MatchStarts sent from server to two clients when the match is found for two players
 type MatchStarts struct {
-	Columns   uint64 `json:"Columns"`
-	Rows      uint64 `json:"Rows"`
-	Adversary Player `json:"Adversary"`
-	FirstMove bool   `json:"FirstMove"`
+	Adversary Player `json:"adversary"`
+	FirstMove bool   `json:"first_move"`
+	Columns   uint64 `json:"columns"`
+	Rows      uint64 `json:"rows"`
 }
 
 func (evt *MatchStarts) GetEventName() string {
-	return "MatchStarts"
+	return "match_starts"
+}
+
+func (evt *MatchStarts) ProtocolAlias() string {
+	return "match_starts"
 }
 
 func (evt *MatchStarts) CheckSendFields() error {
@@ -153,12 +163,16 @@ func (evt *MatchStarts) CheckReceivedFields() error {
 }
 
 type Player struct {
-	Name string `json:"Name"`
-	Id   uint64 `json:"Id"`
+	Id   uint64 `json:"id"`
+	Name string `json:"name"`
 }
 
 func (evt *Player) GetEventName() string {
-	return "Player"
+	return "player"
+}
+
+func (evt *Player) ProtocolAlias() string {
+	return "player"
 }
 
 func (evt *Player) CheckSendFields() error {
@@ -169,15 +183,18 @@ func (evt *Player) CheckReceivedFields() error {
 	return nil
 }
 
-// PlayerMove sent when client performs any move. Server will relay to adversary
 type PlayerMove struct {
-	Player *Player `json:"Player,omitempty"` // ServerToClient
-	Column uint    `json:"Column"`
-	Row    *uint   `json:"Row,omitempty"` // ServerToClient
+	Player *Player `json:"player,omitempty"` // ServerToClient
+	Column uint    `json:"column"`
+	Row    *uint   `json:"row,omitempty"` // ServerToClient
 }
 
 func (evt *PlayerMove) GetEventName() string {
-	return "PlayerMove"
+	return "player_move"
+}
+
+func (evt *PlayerMove) ProtocolAlias() string {
+	return "player_move"
 }
 
 func (evt *PlayerMove) CheckSendFields() error {
@@ -186,21 +203,33 @@ func (evt *PlayerMove) CheckSendFields() error {
 
 func (evt *PlayerMove) CheckReceivedFields() error {
 	if evt.Player != nil {
-		return errors.New("Player is an invalid field")
+		return errors.New("PlayerMove.Player is an invalid field")
 	}
 	if evt.Row != nil {
-		return errors.New("Row is an invalid field")
+		return errors.New("PlayerMove.Row is an invalid field")
 	}
 	return nil
 }
+func (evt *PlayerMove) SetPlayer(player Player) *PlayerMove {
+	evt.Player = &player
+	return evt
+}
+func (evt *PlayerMove) SetRow(row uint) *PlayerMove {
+	evt.Row = &row
+	return evt
+}
 
 type Point struct {
-	Row    uint `json:"Row"`
-	Column uint `json:"Column"`
+	Row    uint `json:"row"`
+	Column uint `json:"column"`
 }
 
 func (evt *Point) GetEventName() string {
-	return "Point"
+	return "point"
+}
+
+func (evt *Point) ProtocolAlias() string {
+	return "point"
 }
 
 func (evt *Point) CheckSendFields() error {
@@ -215,7 +244,11 @@ type QueueRequest struct {
 }
 
 func (evt *QueueRequest) GetEventName() string {
-	return "QueueRequest"
+	return "queue_request"
+}
+
+func (evt *QueueRequest) ProtocolAlias() string {
+	return "queue_request"
 }
 
 func (evt *QueueRequest) CheckSendFields() error {
@@ -226,13 +259,16 @@ func (evt *QueueRequest) CheckReceivedFields() error {
 	return nil
 }
 
-// Welcome is sent from server to client whenever connects
 type Welcome struct {
-	You Player `json:"You"`
+	You Player `json:"you"`
 }
 
 func (evt *Welcome) GetEventName() string {
-	return "Welcome"
+	return "welcome"
+}
+
+func (evt *Welcome) ProtocolAlias() string {
+	return "welcome"
 }
 
 func (evt *Welcome) CheckSendFields() error {

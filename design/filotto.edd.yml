@@ -1,40 +1,36 @@
 namespace: filotto
 structs:
-  Player:
-    fields:
-      Id: uint64
-      Name: string
-  Point:
-    fields:
-      Row: uint
-      Column: uint
-  Welcome: # Welcome is sent from server to client whenever connects
-    fields:
-      You: Player
-  QueueRequest: {} # QueueRequest sent from client to server when the player wants to queue for a match
-  MatchStarts: # MatchStarts sent from server to two clients when the match is found for two players
-    fields:
-      Adversary: Player
-      FirstMove: bool
-      Columns: uint64
-      Rows: uint64
-  MatchEnds: # MatchEnds sent from server to both players in a match when the match ends for whatever reason
-    fields:
-      Winner: Player
-      WinLine: "[]Point"
-      Reason: string # Reason can be "line" or "player_left"
-  PlayerMove: # PlayerMove sent when client performs any move. Server will relay to adversary
-    fields:
-      Player: !!server Player
-      Column: uint
-      Row: !!server uint
+  player:
+    id: uint64
+    name: string
+  point:
+    row: uint
+    column: uint
+  welcome: # welcome is sent from server to client whenever connects
+    you: .player
+  queue_request: {} # queue_request sent from client to server when the player wants to queue for a match
+  match_starts: # match_starts sent from server to two clients when the match is found for two players
+    adversary: .player
+    first_move: bool
+    columns: uint64
+    rows: uint64
+  match_ends: # match_ends sent from server to both players in a match when the match ends for whatever reason
+    winner: .player
+    win_line: +.point
+    reason: string # reason can be "line" or "player_left"
+  player_move: # PlayerMove sent when client performs any move. Server will relay to adversary
+    player: !!server .player
+    column: uint
+    row: !!server uint
 
 channels:
-  Filotto:
-    enable:
-      - !!server Welcome
-      - !!server MatchStarts
-      - !!server MatchEnds
-      - PlayerMove
-      - !!client QueueRequest
+  filotto:
+    dual:
+      - player_move
+    server:
+      - welcome
+      - match_starts
+      - match_ends
+    client:
+      - queue_request
 
